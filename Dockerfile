@@ -40,12 +40,14 @@ RUN openssl req -x509 -days 365 -new -config /usr/share/TLS/openssl.conf -keyout
 
 FROM httpd:2.4
 
-ARG SETPROXY=False
-ARG SETTLS=False
+ARG SETPROXY=True
+ARG SETTLS=True
 ARG TLSPUBLICFILE=./server.crt
 ARG TLSPRIVATEFILE=./server.key
-ENV PROXYLOCATION=http://localhost/
+ENV PROXYLOCATION=http://www.example.com/
 ENV SERVERNAME=localhost
+ENV ERRORLOG=/var/log/apache2/error.log
+ENV ACCESSLOG=/var/log/apache2/access.log
 
 
 RUN DEBIAN_FRONTEND=noninteractive \
@@ -75,9 +77,9 @@ RUN ln -s libfuzzy.so.2.1.0 /usr/local/lib/libfuzzy.so && \
 
 RUN sed -i -e 's/#LoadModule unique_id_module/LoadModule unique_id_module/g' /usr/local/apache2/conf/httpd.conf && \
 	sed -i -e 's/ServerTokens Full/ServerTokens Prod/g' /usr/local/apache2/conf/extra/httpd-default.conf && \
+	sed -i -e 's/#CustomLog "logs\/access_log" combined/Include conf\/extra\/httpd-logging-before-modsec.conf/' /usr/local/apache2/conf/httpd.conf && \
 	echo "LoadModule security2_module /usr/local/apache2/modules/mod_security2.so"    >>	/usr/local/apache2/conf/httpd.conf && \
 	echo "Include conf/extra/httpd-default.conf"   									                  >>	/usr/local/apache2/conf/httpd.conf && \
-	echo "Include conf/extra/httpd-logging-before-modsec.conf"							>>	/usr/local/apache2/conf/httpd.conf && \
 	echo "<IfModule security2_module>\nInclude /etc/modsecurity.d/include.conf\n</IfModule>" 	  >>	/usr/local/apache2/conf/httpd.conf && \
   echo "include \"/etc/modsecurity.d/modsecurity.conf\"" > /etc/modsecurity.d/include.conf && \
 	echo "Include conf/extra/httpd-logging-after-modsec.conf"  	                	  >>	/usr/local/apache2/conf/httpd.conf && \
@@ -88,7 +90,12 @@ RUN if [ "$SETTLS" = "True" ]; then echo "setting TLS"; sed -i \
         -e 's/^#\(Include .*httpd-ssl.conf\)/\1/' \
         -e 's/^#\(LoadModule .*mod_ssl.so\)/\1/' \
         -e 's/^#\(LoadModule .*mod_socache_shmcb.so\)/\1/' \
-        conf/httpd.conf; \
+        conf/httpd.conf; sed -i \
+        -e 's/^ServerName www\.example\.com:443/ServerName \${SERVERNAME}/' \
+	    -e 's/^CustomLog \/proc\/self\/fd\/1 \\/CustomLog		${ACCESSLOG} extended/' \
+	    -e 's/"%t %h %{SSL_PROTOCOL}x %{SSL_CIPHER}x \\"%r\\" %b"//' \
+	    -e 's/ErrorLog \/proc\/self\/fd\/2/ErrorLog		${ERRORLOG}/' \
+        conf/extra/httpd-ssl.conf; \
 	fi
 
 RUN if [ "$SETPROXY" = "True" ]; then echo "setting Proxy"; sed -i \
