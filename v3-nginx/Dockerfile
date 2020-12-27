@@ -47,12 +47,12 @@ RUN git clone https://github.com/SpiderLabs/ModSecurity --branch v3.0.4 --depth 
  && make install
 
 # Generate self-signed certificates (if needed)
-RUN mkdir -p /usr/share/TLS
-COPY v3-nginx/openssl.conf /usr/share/TLS
-RUN openssl req -x509 -days 365 -new \
-      -config /usr/share/TLS/openssl.conf \
-      -keyout /usr/share/TLS/server.key \
-      -out /usr/share/TLS/server.crt
+# RUN mkdir -p /usr/share/TLS
+# COPY v3-nginx/openssl.conf /usr/share/TLS
+# RUN openssl req -x509 -days 365 -new \
+#       -config /usr/share/TLS/openssl.conf \
+#       -keyout /usr/share/TLS/server.key \
+#       -out /usr/share/TLS/server.crt
 
 FROM nginx:1.17.9
 
@@ -88,8 +88,8 @@ ENV ACCESSLOG=/var/log/nginx/access.log \
     PROXY_TIMEOUT=60s \
     PROXY_SSL_CERT_KEY=/etc/nginx/conf/server.key \
     PROXY_SSL_CERT=/etc/nginx/conf/server.crt \
-    PROXY_SSL_VERIFY=off \
-    SERVER_NAME=localhost \
+    PROXY_SSL_VERIFY=on \
+    SERVER_NAME=debian01.helon.pw \
     SSL_PORT=443 \
     TIMEOUT=60s \
     WORKER_CONNECTIONS=1024 \
@@ -115,8 +115,11 @@ RUN apt-get update \
 
 COPY --from=build /usr/local/modsecurity/ /usr/local/modsecurity/
 COPY --from=build /usr/local/lib/ /usr/local/lib/
-COPY --from=build /usr/share/TLS/server.key /etc/nginx/conf/server.key
-COPY --from=build /usr/share/TLS/server.crt /etc/nginx/conf/server.crt
+# COPY --from=build /usr/share/TLS/server.key /etc/nginx/conf/server.key
+# COPY --from=build /usr/share/TLS/server.crt /etc/nginx/conf/server.crt
+COPY v3-nginx/certs/helon.pw.key /etc/nginx/conf/server.key
+COPY v3-nginx/certs/fullchain.cer /etc/nginx/conf/server.crt
+COPY v3-nginx/certs/debian01CA.crt /etc/nginx/client_certs/ca.crt
 COPY src/etc/modsecurity.d/*.conf /etc/modsecurity.d/
 COPY v3-nginx/conf.d/*.conf /etc/nginx/conf.d/
 COPY v3-nginx/nginx.conf /etc/nginx/
